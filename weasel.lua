@@ -33,17 +33,17 @@ local function checkClone(origin,clone,otype)
 end
 
 local function cloneTable(origin)
-  local originType = type(origin)
+  local oriType = type(origin)
   local clone
-  if originType == 'table' then
+  if oriType == 'table' then
     clone = {}
-    for originalKey, originalValue in pairs(origin) do
-      clone[cloneTable(originalKey)] = cloneTable(originalValue)
+    for oriKey, oriVal in pairs(origin) do
+      clone[cloneTable(oriKey)] = cloneTable(oriVal)
     end
   else
     clone = origin
   end
-  repeat until (checkClone(origin,clone,originType))
+  repeat until (checkClone(origin,clone,oriType))
   return clone
 end
 
@@ -55,18 +55,27 @@ function createGame(title, icon)
   game.Stages = {}
   game.Name = title
   game.Icon = icon
-  game.sound = {}
-  game.sound.BGM = nil
   game.goNext = nil
   game.firstStage = nil
   game.gameOverStage = nil
+  game.retryMode = false
+  game.Sound = {}
+  game.enemyMove = getBuiltInEnemyMove()
   game.setBGM = function(game,path)
-    if game.sound.BGM ~= nil then
-      love.audio.stop(game.sound.BGM)
+    if game.Sound.BGM ~= nil then
+      love.audio.stop(game.Sound.BGM)
     end
-    game.sound.BGM = love.audio.newSource(path, "stream")
-    game.sound.BGM:setLooping(true)
-    game.sound.BGM:play()
+    game.Sound.BGM = love.audio.newSource(path, "stream")
+    game.Sound.BGM:setLooping(true)
+    game.Sound.BGM:play()
+  end
+  game.setSound = function(game,type,path)
+    if type=="DEATH" then
+      if game.Sound.Death ~= nil then
+        love.audio.stop(game.Sound.Death)
+      end
+      game.Sound.Death = love.audio.newSource(path, "stream")
+    end
   end
   game.Init = function(game,startStage)
     game.State = startStage
@@ -144,6 +153,7 @@ function createStage(type, next)
     stage.Completed = false
     if (stage.Player~=nil) then
       stage.Player:moveTo(stage.Start.X,stage.Start.Y)
+      stage.Player.Direction = 3
     end
     for j=0,#stage.Enemies do
       if (stage.Enemies[j]~=nil) then
@@ -186,8 +196,14 @@ function createStage(type, next)
         for j=0,#stage.Enemies do
           if (stage.Enemies[j]~=nil) then
             if ((stage.Enemies[j].X==stage.Player.X)and(stage.Enemies[j].Y==stage.Player.Y)) then
-              result = game.gameOverStage
-              print(os.time(),result)
+              if game.retryMode then
+                result = game.State
+              else
+                result = game.gameOverStage
+              end
+              if game.Sound.Death~=nil then
+                game.Sound.Death:play()
+              end
             end
           end
         end
@@ -577,83 +593,87 @@ createEnemy = function(filePath)
   return enemy
 end
 
-enemyMove = {}
 
-enemyMove[0] = function(enemy, stage)
-  local map = stage.Map
-  local myX = enemy.X
-  local myY = enemy.Y
-  local bkX,bkY = myX,myY
-  if (math.random(1,3)==1) then
-    if (enemy.X>stage.Player.X) then
-      enemy.Direction = 1
-      if (math.random(1,5)==1) then
-        enemy.Direction = 3
-      end
-    elseif (enemy.X<stage.Player.X) then
-      enemy.Direction = 3
-      if (math.random(1,5)==1) then
+getBuiltInEnemyMove = function()
+  local enemyMove = {}
+
+  enemyMove[0] = function(enemy, stage)
+    local map = stage.Map
+    local myX = enemy.X
+    local myY = enemy.Y
+    local bkX,bkY = myX,myY
+    if (math.random(1,3)==1) then
+      if (enemy.X>stage.Player.X) then
         enemy.Direction = 1
-      end
-    else
-      if (enemy.Y<stage.Player.Y) then
-        enemy.Direction = 2
-      else
-        enemy.Direction = 0
-      end
-      if (math.random(1,5)==1) then
-        if math.random(1,2)==2 then
+        if (math.random(1,5)==1) then
           enemy.Direction = 3
-        else
+        end
+      elseif (enemy.X<stage.Player.X) then
+        enemy.Direction = 3
+        if (math.random(1,5)==1) then
           enemy.Direction = 1
+        end
+      else
+        if (enemy.Y<stage.Player.Y) then
+          enemy.Direction = 2
+        else
+          enemy.Direction = 0
+        end
+        if (math.random(1,5)==1) then
+          if math.random(1,2)==2 then
+            enemy.Direction = 3
+          else
+            enemy.Direction = 1
+          end
+        end
+      end
+      if (enemy.Jumping == 0) then
+        if (stage.Player.Y<enemy.Y) then
+          enemy.Jumping = 1
+          --if enemy.sound.jump~=nil then
+            --enemy.sound.jump:play()
+          --end
+        end
+        if (math.random(1,5) == 1) then
+          enemy.Jumping = 1
         end
       end
     end
-    if (enemy.Jumping == 0) then
-      if (stage.Player.Y<enemy.Y) then
-        enemy.Jumping = 1
-        --if enemy.sound.jump~=nil then
-          --enemy.sound.jump:play()
-        --end
+    if (math.random(1,3)==1) then
+      if (enemy.Direction == 1) then
+        myX = myX - 1
+      elseif (enemy.Direction == 3) then
+        myX = myX + 1
       end
-      if (math.random(1,5) == 1) then
-        enemy.Jumping = 1
+      myX = clamp(myX, 0, map.Width-1)
+      if ((map.Map[myX][myY] == 1) and (enemy.Jumping==0)) then
+        myX = bkX
       end
     end
-  end
-  if (math.random(1,3)==1) then
-    if (enemy.Direction == 1) then
-      myX = myX - 1
-    elseif (enemy.Direction == 3) then
-      myX = myX + 1
+    if enemy.Jumping==1 then
+      myY = myY - 1
+      enemy.Jumping = 2
+    elseif enemy.Jumping==2 then
+      myY = myY - 1
+      enemy.Jumping = 3
+    elseif enemy.Jumping==3 then
+      if map.Map[myX][myY+1] == 1 then
+        enemy.Jumping = 0
+      else
+        myY = myY + 1
+      end
     end
-    myX = clamp(myX, 0, map.Width-1)
-    if ((map.Map[myX][myY] == 1) and (enemy.Jumping==0)) then
-      myX = bkX
-    end
-  end
-  if enemy.Jumping==1 then
-    myY = myY - 1
-    enemy.Jumping = 2
-  elseif enemy.Jumping==2 then
-    myY = myY - 1
-    enemy.Jumping = 3
-  elseif enemy.Jumping==3 then
-    if map.Map[myX][myY+1] == 1 then
-      enemy.Jumping = 0
-    else
+    if ((map.Map[myX][myY+1] ~= 1) and (enemy.Jumping==0))then
+      Jumping = 3
       myY = myY + 1
     end
-  end
-  if ((map.Map[myX][myY+1] ~= 1) and (enemy.Jumping==0))then
-    Jumping = 3
-    myY = myY + 1
-  end
-  --if ((myX~=bkX)or(myY~=bkY)) then
-    --if enemy.sound.move~=nil then
-      --enemy.sound.move:play()
+    --if ((myX~=bkX)or(myY~=bkY)) then
+      --if enemy.sound.move~=nil then
+        --enemy.sound.move:play()
+      --end
     --end
-  --end
-  enemy.X = myX
-  enemy.Y = myY
+    enemy.X = myX
+    enemy.Y = myY
+  end
+  return enemyMove
 end
