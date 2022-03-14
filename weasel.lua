@@ -1,6 +1,6 @@
 --**********************************************************
 --* Weasel Game Engine for LÖVE                            *
---*                                           Version 0.02 *
+--*                                           Version 0.03 *
 --*                                                        *
 --* Copyright (C) 2022 michyo (Michiyo Tagami)             *
 --* Released under the MIT license                         *
@@ -78,11 +78,19 @@ function createGame(title, icon)
     end
   end
   game.Init = function(game,startStage)
+    local tmpS
     game.State = startStage
-    if game.Stages[game.State].Init ~= nil then
-      game.Stages[game.State]:Init()
-    end
-    game.firstStage = startStage
+    repeat
+      tmpS = game.Stages[game.State]
+      if (game.Stages[game.State]~=nil) then
+        if (game.Stages[game.State].Init ~= nil) then
+          game.Stages[game.State]:Init()
+        end
+        game.firstStage = game.State
+      else
+        game.State = game.State + 1
+      end
+    until ((tmpS~=nil) or (game.State>table.maxn(game.Stages)))
   end
   game.addStage = function(game,stageNo,stageObj)
     game.Stages[stageNo] = stageObj
@@ -137,6 +145,9 @@ end
 --* Stage **************************************************
 --**********************************************************
 function createStage(type, next)
+  if (next==nil) then
+    print("Weasel: Warning! Next stage is nil.")
+  end
   local stage = {}
   stage.Type = type
   stage.Map = nil
@@ -179,7 +190,9 @@ function createStage(type, next)
         if (keyInput:checkInterval(dt)) then
           for j=0,#stage.Enemies do
             if (stage.Enemies[j]~=nil) then
-              stage.Enemies[j]:Move(stage)
+              if (stage.Enemies[j].Move~=nil) then
+                stage.Enemies[j]:Move(stage)
+              end
             end
           end
           stage.Player:Move(stage)
@@ -187,22 +200,26 @@ function createStage(type, next)
         end
       end
       for i=1,#stage.Map.Goals do
-        if ((stage.Map.Goals[i].X == stage.Player.X)
-          and (stage.Map.Goals[i].Y == stage.Player.Y)) then
-          result = stage.Map.Goals[i].Next
+        if (stage.Player~=nil) then
+          if ((stage.Map.Goals[i].X == stage.Player.X)
+            and (stage.Map.Goals[i].Y == stage.Player.Y)) then
+            result = stage.Map.Goals[i].Next
+          end
         end
       end
       if (stage.Enemies~=nil) then
         for j=0,#stage.Enemies do
           if (stage.Enemies[j]~=nil) then
-            if ((stage.Enemies[j].X==stage.Player.X)and(stage.Enemies[j].Y==stage.Player.Y)) then
-              if game.retryMode then
-                result = game.State
-              else
-                result = game.gameOverStage
-              end
-              if game.Sound.Death~=nil then
-                game.Sound.Death:play()
+            if (stage.Player~=nil) then
+              if ((stage.Enemies[j].X==stage.Player.X)and(stage.Enemies[j].Y==stage.Player.Y)) then
+                if game.retryMode then
+                  result = game.State
+                else
+                  result = game.gameOverStage
+                end
+                if game.Sound.Death~=nil then
+                  game.Sound.Death:play()
+                end
               end
             end
           end
@@ -275,6 +292,12 @@ function createStage(type, next)
     else
       oy = stage.Player.Y - 7
     end
+    if (stage.Map.Width < 20) then
+      ox = 0
+    end
+    if (stage.Map.Height < 15) then
+      oy = stage.Map.Height-15
+    end
     stage.posTopLeft.X = ox
     stage.posTopLeft.Y = oy
   end
@@ -315,6 +338,12 @@ function createMap()
     map.Width = width
     map.Height = i
     map.Map = {}
+    for tmpX=0,50 do
+      map.Map[tmpX] = {}
+      for tmpY=0,50 do
+        map.Map[tmpX][tmpY] = nil
+      end
+    end
     for tmpX=0,map.Width-1 do
       map.Map[tmpX] = {}
       for tmpY=0,map.Height-1 do
@@ -347,7 +376,11 @@ function createMap()
     local ox,oy = stage.posTopLeft.X,stage.posTopLeft.Y
     for tmpX=ox,ox+19 do
       for tmpY=oy,oy+14 do
-        love.graphics.draw(map.Chip[map.Map[tmpX][tmpY]], (tmpX-ox)*40, (tmpY-oy)*40)
+        if (map.Map[tmpX][tmpY]~=nil) then
+          if (map.Chip[map.Map[tmpX][tmpY]]~=nil) then
+            love.graphics.draw(map.Chip[map.Map[tmpX][tmpY]], (tmpX-ox)*40, (tmpY-oy)*40)
+          end
+        end
       end
     end
   end
@@ -453,6 +486,7 @@ function createPlayer(filePath)
   player.X = 0
   player.Y = 0
   player.Jumping = 0
+  player.JumpPower = 4
   player.sound = {}
   player.sound.jump = nil
   player.sound.move = nil
@@ -501,9 +535,6 @@ function createPlayer(filePath)
       player.Direction = 3
     end
     myX = clamp(myX, 0, map.Width-1)
-    if ((map.Map[myX][myY] == 1) and (player.Jumping==0)) then
-      myX = bkX
-    end
     if love.keyboard.isDown('space') then
       if (player.Jumping == 0) then
         player.Jumping = 1
@@ -512,18 +543,20 @@ function createPlayer(filePath)
         end
       end
     end
-    if player.Jumping==1 then
+    if ((player.Jumping>=1) and (player.Jumping<player.JumpPower)) then
       myY = myY - 1
-      player.Jumping = 2
-    elseif player.Jumping==2 then
-      myY = myY - 1
-      player.Jumping = 3
-    elseif player.Jumping==3 then
+      player.Jumping = player.Jumping + 1
+      --myY = myY - player.JumpPower + 1
+      --player.Jumping = player.JumpPower
+    elseif player.Jumping==player.JumpPower then
       if map.Map[myX][myY+1] == 1 then
         player.Jumping = 0
       else
         myY = myY + 1
       end
+    end
+    if ((map.Map[myX][myY] == 1) and (player.Jumping==0)) then
+      myX = bkX
     end
     if ((map.Map[myX][myY+1] ~= 1) and (player.Jumping==0))then
       Jumping = 3
