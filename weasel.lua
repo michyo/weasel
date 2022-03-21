@@ -1,6 +1,6 @@
 --**********************************************************
 --* Weasel Game Engine for LÖVE                            *
---*                                           Version 0.03 *
+--*                                           Version 0.04 *
 --*                                                        *
 --* Copyright (C) 2022 michyo (Michiyo Tagami)             *
 --* Released under the MIT license                         *
@@ -709,4 +709,72 @@ getBuiltInEnemyMove = function()
     enemy.Y = myY
   end
   return enemyMove
+end
+
+--* BoneKit ************************************************
+--**********************************************************
+createBoneKit = function(bonePath)
+  if (bonePath == nil) then
+    bonePath = "lib/bonekit.txt"
+  end
+  local bonekit = {}
+  local i = 0
+  local tmpS = {}
+  for line in love.filesystem.lines(bonePath) do
+    tmpS[i] = line
+    i = i + 1
+  end
+  bonekit.Game = createGame(tmpS[0],tmpS[1])
+  bonekit.Player = createPlayer(tmpS[2])
+  bonekit.Enemy = createEnemy(tmpS[3])
+  bonekit.Enemy.Move = bonekit.Game.enemyMove[0]
+  i = 0
+  local mapchipnames = {}
+  bonekit.MapChip = createMapChip()
+  for line in love.filesystem.lines(tmpS[4]) do
+    local tmpT = string.gmatch(line,"([^:]*):.*")()
+    local tmpU = string.gmatch(line,".*:([^:]*)")()
+    bonekit.MapChip:addMapChip(tmpT,tmpU)
+    mapchipnames[i] = tmpT
+    i = i + 1
+  end
+  bonekit.StageBone = function(bonekit)
+    local stage = createStage(0,-1)
+    stage.Map = createMap()
+    for i=0,#mapchipnames do
+      stage.Map:registerChip(i,bonekit.MapChip[mapchipnames[i]])
+    end
+    local tmpT = {}
+    for tmpM in (tmpS[5]..","):gmatch("(.-)"..",") do
+      table.insert(tmpT, tonumber(tmpM));
+    end
+    local tmpU = {}
+    for tmpM in (tmpS[6]..","):gmatch("(.-)"..",") do
+      table.insert(tmpU, tonumber(tmpM));
+    end
+    stage.Map.Obstacles = tmpT
+    stage.Map.GoalChips = tmpU
+    stage.Player = bonekit.Player
+    stage.setStartBL = function(stage)
+      stage:setStart(0,stage.Map.Height-2)
+    end
+    return stage
+  end
+  bonekit.Title = createStage(-1,-1)
+  bonekit.Title:preparePictureStage(tmpS[7])
+  bonekit.Complete = createStage(-1,-1)
+  bonekit.Complete:preparePictureStage(tmpS[8])
+  bonekit.Gameover = createStage(-1,0)
+  bonekit.Gameover:preparePictureStage(tmpS[9])
+  bonekit.soundBGM = tmpS[10]
+  bonekit.soundDEATH = tmpS[11]
+  bonekit.soundJUMP = tmpS[12]
+  bonekit.soundMOVE = tmpS[13]
+  bonekit.PlaySound = function(bonekit)
+    bonekit.Game:setBGM(bonekit.soundBGM)
+    bonekit.Game:setSound("DEATH",bonekit.soundDEATH)
+    bonekit.Player:setSound("JUMP",bonekit.soundJUMP)
+    bonekit.Player:setSound("MOVE",bonekit.soundMOVE)
+  end
+  return bonekit
 end

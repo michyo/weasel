@@ -222,6 +222,75 @@ In this example, the variable named game receives the game object that was creat
 
 In this sample, in the game object named game, the title stage is added as the 0th stage and the stage1 stage is added as the 1st stage. When the player is hit by an enemy, a retry is set to start immediately from the beginning of the stage. Finally, the game is started from stage 0.
 
+BoneKit
+-------
+
+Developing games with the Weasel game engine is already easy, but you can make it even easier with BoneKit.
+
+    createBoneKit(bonePath)
+
+This function creates and returns a BoneKit object. For bonePath, specify the path of the configuration file required by BoneKit. If no bonePath is specified, it is considered to be "lib/bonekit.txt". The following is a sample configuration file.
+
+    My Game                 <- Game Title
+    img/icon.png            <- Icon of Game Window
+    img/player.png          <- Splite Sheet of Player
+    img/enemy.png           <- Splite Sheet of Enemy
+    map/mapchips.txt        <- MapChip List File
+    1,3,5                   <- List of Obstacles No.
+    2,4                     <- List of GoalChips No.
+    img/title.jpg           <- Image for Title Screen
+    img/complete.jpg        <- Image for Complete Screen
+    img/gameover.jpg        <- Image for Gameover Screen
+    snd/bgm.mp3             <- BGM File
+    snd/death.wav           <- Player Death Sound File
+    snd/jump.wav            <- Player Jump Sound File
+    snd/move.wav            <- Player Move Sound File
+
+A sample MapChip list file is shown below.
+
+    sky:img/sky.png
+    dirt:img/dirt.png
+    goal:img/goal.png
+
+The format is the name of the map chip and the file path of the image to be used for the map chip, connected by ":" on each line. The first line is considered to be mapchip number 0, and the numbers are counted up from there.
+
+createBoneKit() automatically creates various objects for use in the Weasel game engine. You can use it as follows.
+
+    bonekit = createBoneKit()
+    game = bonekit.Game
+    player = bonekit.Player
+    mapchip = bonekit.MapChip
+    enemy = bonekit.Enemy
+    title = bonekit.Title
+    complete = bonekit.Complete
+    gameover = bonekit.Gameover
+
+Following instruction returns a generic game stage framework with previously prepared objects.
+
+	[BoneKit Object]:StageBone()
+
+You can use this in the following way. This BoneKit stage already has a MapChip/Player loaded and the obstacle and goal chip numbers set, so all you have to do is load the map file, place the necessary Enemy, and the stage will be ready to go. However, the initial position of the Player is not fixed, so it is necessary to set it by yourself. You may be able to do it easily by using the setStartBL() function described later.
+
+    stage1 = bonekit:StageBone()
+
+The following instruction specifies that sound is to be played in games created with the Bourne Kit.
+
+	[BoneKit Object]:PlaySound()
+
+You can use this in this way.
+
+    bonekit:PlaySound()
+
+The following instruction sets the player's starting point one line up from the bottom left of the map. This is to simplify this set since players often start from the lower left. The reason it is one line up from the bottom is that the bottom line of the map must be an obstacle (the ground).
+
+	[Stage Object]:setStartBL()
+
+You could use this instruction in this way.
+
+    stage1:setStartBL()
+
+Note that this function only exists for stages created from BoneKit.
+
 License
 -------
 
